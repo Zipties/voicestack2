@@ -1,0 +1,51 @@
+version: "3.8"
+services:
+  web:
+    build: { context: ./web }
+    ports: ["3000:3000"]
+    environment: ["NEXT_PUBLIC_API_URL=http://api:8000"]
+    depends_on: [api]
+
+  api:
+    build: { context: ./api }
+    expose: ["8000"]
+    environment:
+      - DATABASE_URL=postgresql+psycopg://voice:voice@db:5432/voice
+      - REDIS_URL=redis://redis:6379/0
+      - INPUTS_DIR=/data/inputs
+      - ARCHIVAL_DIR=/data/archival
+      - ARTIFACTS_DIR=/data/artifacts
+      - MODELS_DIR=/data/models
+      - API_TOKEN=${API_TOKEN:-changeme}
+      - HF_TOKEN=${HF_TOKEN:-}
+    volumes: ["./data:/data"]
+    depends_on: [db, redis]
+
+  worker:
+    build: { context: ./worker }
+    environment:
+      - DATABASE_URL=postgresql+psycopg://voice:voice@db:5432/voice
+      - REDIS_URL=redis://redis:6379/0
+      - INPUTS_DIR=/data/inputs
+      - ARCHIVAL_DIR=/data/archival
+      - ARTIFACTS_DIR=/data/artifacts
+      - MODELS_DIR=/data/models
+      - HF_TOKEN=${HF_TOKEN:-}
+    volumes: ["./data:/data"]
+    depends_on: [api, db, redis]
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      - POSTGRES_USER=voice
+      - POSTGRES_PASSWORD=voice
+      - POSTGRES_DB=voice
+    volumes: ["db_data:/var/lib/postgresql/data"]
+    ports: ["5432:5432"]
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+volumes:
+  db_data: {}

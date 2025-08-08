@@ -1,0 +1,5 @@
+{
+  "name": "web",
+  "private": true,
+  "scripts": { "build": "echo building web", "start": "node -e \"console.log('web placeholder')\"" }
+}
