@@ -1,5 +1,6 @@
 import os
 import uuid
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -10,6 +11,7 @@ from redis import Redis
 from db.session import get_db
 from models.job import Job
 from models.asset import Asset
+from schemas.common import JobStatus
 from core.config import settings
 from core.security import require_bearer
 
@@ -17,7 +19,7 @@ router = APIRouter()
 
 # Initialize Redis and RQ
 redis_conn = Redis.from_url(settings.REDIS_URL)
-queue = Queue(connection=redis_conn)
+queue = Queue("voicestack2", connection=redis_conn)
 
 def get_file_extension(filename: str) -> str:
     """Extract file extension from filename."""
@@ -35,7 +37,7 @@ def guess_media_type(extension: str) -> str:
     else:
         return 'unknown'
 
-@router.post("/upload")
+@router.post("")
 async def upload_file(
     file: UploadFile = File(...),
     email_to: Optional[str] = Form(None),
@@ -74,7 +76,7 @@ async def upload_file(
     
     # Create job record
     job = Job(
-        status="QUEUED",
+        status=JobStatus.QUEUED.value,
         progress=0,
         params=job_params,
         email_to=email_to
@@ -94,15 +96,15 @@ async def upload_file(
     # Enqueue RQ job (stub for now)
     try:
         queue.enqueue(
-            "worker.pipeline.run_job",
+            "simple_pipeline.run_job_sync", # Changed from "simple_pipeline.run_job"
             str(job.id),
             input_path,
-            params,
+            job_params,
             job_timeout=3600  # 1 hour timeout
         )
     except Exception as e:
         # If enqueue fails, mark job as failed
-        job.status = "FAILED"
+        job.status = JobStatus.FAILED.value
         job.log_path = f"Enqueue failed: {str(e)}"
         db.commit()
         raise HTTPException(status_code=500, detail=f"Failed to enqueue job: {str(e)}")

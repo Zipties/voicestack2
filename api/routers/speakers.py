@@ -20,13 +20,13 @@ class SpeakerMergeRequest(BaseModel):
     source_speaker_id: str
     target_speaker_id: str
 
-@router.get("/speakers", response_model=List[SpeakerResponse])
+@router.get("", response_model=List[SpeakerResponse])
 def list_speakers(db: Session = Depends(get_db)):
     """List all speakers."""
     speakers = db.query(Speaker).order_by(Speaker.name).all()
     return speakers
 
-@router.post("/speakers/merge")
+@router.post("/merge")
 def merge_speakers(
     request: SpeakerMergeRequest,
     db: Session = Depends(get_db),

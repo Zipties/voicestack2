@@ -8,10 +8,10 @@ load_dotenv()
 
 class Settings:
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/voicestack")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+psycopg://voice:voice@db:5432/voice")
     
     # Redis
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
     
     # Directories
     INPUTS_DIR: str = os.getenv("INPUTS_DIR", "/data/inputs")

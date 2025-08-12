@@ -7,6 +7,9 @@ from db.base import Base
 from db.session import engine
 from db.init_pgvector import init_pgvector
 
+# Import all models to ensure they are registered with SQLAlchemy
+import models
+
 def init_database():
     """Create all database tables."""
     print("Creating database tables...")

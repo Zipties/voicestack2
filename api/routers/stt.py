@@ -3,7 +3,7 @@ from core.security import require_bearer
 
 router = APIRouter()
 
-@router.post("/stt")
+@router.post("")
 async def speech_to_text(
     audio: UploadFile = File(...),
     _: str = Depends(require_bearer)

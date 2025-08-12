@@ -31,7 +31,7 @@ class TranscriptResponse(BaseModel):
     class Config:
         from_attributes = True
 
-@router.get("/transcripts/{transcript_id}", response_model=TranscriptResponse)
+@router.get("/{transcript_id}", response_model=TranscriptResponse)
 def get_transcript(
     transcript_id: str,
     db: Session = Depends(get_db)

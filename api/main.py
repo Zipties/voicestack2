@@ -2,47 +2,47 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
-from core.config import settings
+from core.config import settings as app_settings
+from db.base import Base
 from db.session import engine
 from db.init_pgvector import init_pgvector
 from models.setting import Setting
-from routers import health, settings, uploads, jobs, transcripts, speakers, stt, email
+from routers import health, settings as settings_router, uploads, jobs, transcripts, speakers, stt, email
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     print("Starting VoiceStack2 API...")
     
-    # Ensure directories exist
-    settings.__init__()
+    # Directories are created at import time by app_settings
     
-    # Initialize database and pgvector
+    # 1) Initialize pgvector extension
     try:
         init_pgvector()
         print("✓ pgvector extension initialized")
     except Exception as e:
         print(f"⚠ Warning: Could not initialize pgvector: {e}")
     
-    # Ensure singleton settings row exists
-    with engine.connect() as conn:
-        try:
-            # Check if settings table exists and has data
-            result = conn.execute(text("SELECT COUNT(*) FROM settings"))
-            count = result.scalar()
-            
-            if count == 0:
-                # Create default settings
-                conn.execute(text("""
-                    INSERT INTO settings (id, model_config, presets) 
-                    VALUES (1, '{}', '[]')
-                """))
-                conn.commit()
+    # 2) Create all tables
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("✓ All tables created")
+    except Exception as e:
+        print(f"⚠ Warning: Could not create tables: {e}")
+    
+    # 3) Ensure singleton settings row exists
+    try:
+        with Session(engine) as s:
+            if not s.get(Setting, 1):
+                s.add(Setting(id=1, model_config={}, presets=[]))
+                s.commit()
                 print("✓ Default settings created")
             else:
                 print("✓ Settings already exist")
-        except Exception as e:
-            print(f"⚠ Warning: Could not initialize settings: {e}")
+    except Exception as e:
+        print(f"⚠ Warning: Could not initialize settings: {e}")
     
     print("✓ VoiceStack2 API startup complete")
     
@@ -70,7 +70,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(health.router, tags=["health"])
-app.include_router(settings.router, prefix="/settings", tags=["settings"])
+app.include_router(settings_router.router, prefix="/settings", tags=["settings"])
 app.include_router(uploads.router, prefix="/upload", tags=["uploads"])
 app.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
 app.include_router(transcripts.router, prefix="/transcripts", tags=["transcripts"])

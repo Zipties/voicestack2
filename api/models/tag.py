@@ -12,7 +12,7 @@ class Tag(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     transcript_id = Column(UUID(as_uuid=True), ForeignKey("transcripts.id"), nullable=False)
     tag = Column(String, nullable=False)
-    source = Column(String, nullable=False, default=TagSource.LLM)
+    source = Column(String, nullable=False, default=TagSource.LLM.value)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     

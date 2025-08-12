@@ -18,7 +18,7 @@ def get_or_create_settings(db: Session) -> Setting:
         db.refresh(settings)
     return settings
 
-@router.get("/settings", response_model=SettingsResponse)
+@router.get("", response_model=SettingsResponse)
 def get_settings(db: Session = Depends(get_db)):
     """Get application settings with secrets masked."""
     settings = get_or_create_settings(db)
@@ -27,13 +27,14 @@ def get_settings(db: Session = Depends(get_db)):
         smtp=settings.smtp_config,
         models=settings.model_config or {},
         presets=settings.presets or [],
+        secrets=settings.secrets_config,
         api_token=settings.api_token,
         hf_token=settings.hf_token
     )
     
     return response.mask_secrets()
 
-@router.put("/settings")
+@router.put("")
 def update_settings(
     request: SettingsRequest,
     db: Session = Depends(get_db),
@@ -50,6 +51,9 @@ def update_settings(
     
     if request.presets is not None:
         settings.presets = [preset.model_dump() for preset in request.presets]
+    
+    if request.secrets is not None:
+        settings.secrets_config = request.secrets.model_dump()
     
     if request.api_token is not None:
         settings.api_token = request.api_token

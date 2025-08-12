@@ -1,51 +1,105 @@
-version: "3.8"
 services:
   web:
     build: { context: ./web }
+    # publish web to host
     ports: ["3000:3000"]
-    environment: ["NEXT_PUBLIC_API_URL=http://api:8000"]
-    depends_on: [api]
+    environment:
+      # point the browser to the host-published API
+      NEXT_PUBLIC_API_URL: "http://localhost:8000"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(()=>process.exit(0)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
   api:
     build: { context: ./api }
-    expose: ["8000"]
+    # publish API so the browser can reach it
+    ports: ["8000:8000"]
     environment:
-      - DATABASE_URL=postgresql+psycopg://voice:voice@db:5432/voice
-      - REDIS_URL=redis://redis:6379/0
-      - INPUTS_DIR=/data/inputs
-      - ARCHIVAL_DIR=/data/archival
-      - ARTIFACTS_DIR=/data/artifacts
-      - MODELS_DIR=/data/models
-      - API_TOKEN=${API_TOKEN:-changeme}
-      - HF_TOKEN=${HF_TOKEN:-}
+      DATABASE_URL: "postgresql+psycopg://voice:voice@db:5432/voice"
+      REDIS_URL: "redis://redis:6379/0"
+      INPUTS_DIR: "/data/inputs"
+      ARCHIVAL_DIR: "/data/archival"
+      ARTIFACTS_DIR: "/data/artifacts"
+      MODELS_DIR: "/data/models"
+      API_TOKEN: "${API_TOKEN:-changeme}"
+      HF_TOKEN: "${HF_TOKEN:-}"
     volumes: ["./data:/data"]
-    depends_on: [db, redis]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
 
   worker:
     build: { context: ./worker }
     environment:
-      - DATABASE_URL=postgresql+psycopg://voice:voice@db:5432/voice
-      - REDIS_URL=redis://redis:6379/0
-      - INPUTS_DIR=/data/inputs
-      - ARCHIVAL_DIR=/data/archival
-      - ARTIFACTS_DIR=/data/artifacts
-      - MODELS_DIR=/data/models
-      - HF_TOKEN=${HF_TOKEN:-}
-    volumes: ["./data:/data"]
-    depends_on: [api, db, redis]
+      DATABASE_URL: "postgresql+psycopg://voice:voice@db:5432/voice"
+      REDIS_URL: "redis://redis:6379/0"
+      INPUTS_DIR: "/data/inputs"
+      ARCHIVAL_DIR: "/data/archival"
+      ARTIFACTS_DIR: "/data/artifacts"
+      MODELS_DIR: "/data/models"
+      HF_TOKEN: "${HF_TOKEN:-}"
+      API_SRC_DIR: "/app/api"
+      # LM Studio Configuration
+      LLM_PROVIDER: "openai_compat"
+      LLM_MODEL: "qwen3-8b-192k-josiefied-uncensored-neo-max"
+      LLM_BASE_URL: "http://192.168.40.69:1234/v1"
+      LLM_TEMPERATURE: "0.2"
+      LLM_TOP_P: "1.0"
+      LLM_MAX_INPUT_TOKENS: "4000"
+      LLM_MAX_OUTPUT_TOKENS: "512"
+      # Whisper Configuration
+      WHISPER_MODEL: "base"
+    volumes: ["./data:/data", "./api:/app/api"]
+    depends_on:
+      api:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    # Run our custom RQ worker
+    command: python worker.py
+    restart: unless-stopped
 
   db:
     image: pgvector/pgvector:pg16
     environment:
-      - POSTGRES_USER=voice
-      - POSTGRES_PASSWORD=voice
-      - POSTGRES_DB=voice
+      POSTGRES_USER: voice
+      POSTGRES_PASSWORD: voice
+      POSTGRES_DB: voice
     volumes: ["db_data:/var/lib/postgresql/data"]
     ports: ["5432:5432"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voice -d voice -h localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
 
   redis:
     image: redis:7-alpine
     ports: ["6379:6379"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
 volumes:
   db_data: {}

@@ -1,8 +1,19 @@
 FROM node:20-alpine
 WORKDIR /app
+
+# Copy package files
 COPY package*.json ./
-RUN [ -f package.json ] && npm ci || true
+
+# Install dependencies
+RUN npm install
+
+# Copy source code
 COPY . .
-RUN [ -f package.json ] && npm run build || true
+
+# Build the application
+RUN npm run build
+
 EXPOSE 3000
-CMD ["npm","start"]
+
+# Start the application
+CMD ["npm", "start"]

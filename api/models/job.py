@@ -10,7 +10,7 @@ class Job(Base):
     __tablename__ = "jobs"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    status = Column(String, nullable=False, default=JobStatus.QUEUED)
+    status = Column(String, nullable=False, default=JobStatus.QUEUED.value)
     progress = Column(Integer, nullable=False, default=0)
     params = Column(JSON, nullable=False, default=dict)
     email_to = Column(String, nullable=True)

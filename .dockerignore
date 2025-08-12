@@ -1,0 +1,11 @@
+.git
+node_modules
+.next
+__pycache__
+*.pyc
+.env
+data/*
+!data/inputs/
+!data/archival/
+!data/artifacts/
+!data/models/

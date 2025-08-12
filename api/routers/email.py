@@ -13,7 +13,7 @@ class EmailTranscriptRequest(BaseModel):
     subject: str = "Transcript from VoiceStack"
     message: str = "Please find the attached transcript."
 
-@router.post("/email/transcript")
+@router.post("/transcript")
 def email_transcript(
     request: EmailTranscriptRequest,
     db: Session = Depends(get_db),

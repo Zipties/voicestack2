@@ -1,0 +1,68 @@
+"""
+OpenAI-compatible client for local models (LM Studio, Open WebUI, vLLM)
+"""
+
+import asyncio
+import httpx
+from typing import List, Dict, Any
+from .base import LLMClient
+
+class OpenAICompatClient(LLMClient):
+    """OpenAI-compatible API client for local models."""
+    
+    def __init__(self, api_key: str, base_url: str):
+        self.api_key = api_key
+        self.base_url = base_url.rstrip('/')
+        self.client = httpx.AsyncClient(timeout=30.0)
+    
+    async def chat(
+        self,
+        *,
+        model: str,
+        messages: List[Dict[str, str]],
+        max_tokens: int,
+        temperature: float,
+        top_p: float
+    ) -> str:
+        """Send chat completion request to OpenAI-compatible endpoint."""
+        url = f"{self.base_url}/chat/completions"
+        
+        headers = {
+            "Content-Type": "application/json"
+        }
+        
+        # Only add Authorization header if API key is provided
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        
+        data = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "top_p": top_p
+        }
+        
+        # Retry logic
+        for attempt in range(3):
+            try:
+                response = await self.client.post(url, headers=headers, json=data)
+                response.raise_for_status()
+                
+                result = response.json()
+                return result["choices"][0]["message"]["content"]
+                
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code in [429, 500, 502, 503, 504] and attempt < 2:
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                    continue
+                raise
+            except Exception as e:
+                if attempt < 2:
+                    await asyncio.sleep(1)
+                    continue
+                raise
+    
+    async def close(self):
+        """Close the HTTP client."""
+        await self.client.aclose() 
