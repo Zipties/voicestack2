@@ -4,12 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Play, Pause, Volume2, Users, FileText } from 'lucide-react'
 
-const API_URL =
-  typeof window !== 'undefined' && process.env.NEXT_PUBLIC_API_URL
-    ? process.env.NEXT_PUBLIC_API_URL
-    : 'http://localhost:8000'
-  ? process.env.NEXT_PUBLIC_API_URL
-  : 'http://localhost:8000'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 interface JobDetail {
   id: string
@@ -46,6 +41,30 @@ interface Segment {
   text: string
   speaker_name: string
   word_timings: any[]
+}
+
+interface Transcript {
+  id: string
+  title?: string
+  summary?: string
+  raw_text?: string
+  segments?: Array<{
+    id: string
+    start: number
+    end: number
+    text: string
+    speaker: {
+      id: string
+      name?: string
+    }
+  }>
+}
+
+interface Speaker {
+  id: string
+  name?: string
+  is_trusted?: boolean
+  embedding?: number[]
 }
 
 export default function JobDetailPage() {
@@ -257,7 +276,7 @@ export default function JobDetailPage() {
             </div>
             
             {/* Transcript View Component */}
-            <TranscriptView transcript={job.transcript} />
+            {job.transcript && <TranscriptView transcript={job.transcript} />}
             
             {/* Segments List */}
             <div className="bg-white rounded-lg shadow-md p-6">
@@ -303,7 +322,7 @@ export default function JobDetailPage() {
   )
 }
 
-const TranscriptView = ({ transcript }) => {
+const TranscriptView = ({ transcript }: { transcript: Transcript }) => {
   if (!transcript || !transcript.segments || transcript.segments.length === 0) {
     return <p className="mt-4 text-gray-500">No transcript is available for this job.</p>;
   }
@@ -314,7 +333,7 @@ const TranscriptView = ({ transcript }) => {
       <ul className="mt-4 space-y-4">
         {transcript.segments.map((segment) => (
           <li key={segment.id} className="p-4 bg-white rounded-lg shadow">
-            <p className="font-semibold text-indigo-600">{segment.speaker?.name || `Speaker #${segment.speaker_id}`}</p>
+            <p className="font-semibold text-indigo-600">{segment.speaker?.name || `Speaker #${segment.speaker.id}`}</p>
             <p className="mt-1 text-gray-800">{segment.text}</p>
           </li>
         ))}
@@ -323,7 +342,7 @@ const TranscriptView = ({ transcript }) => {
   );
 };
 
-const SpeakerEditor = ({ speaker, onUpdate }) => {
+const SpeakerEditor = ({ speaker, onUpdate }: { speaker: Speaker; onUpdate: () => void }) => {
   const [name, setName] = useState(speaker.name || '');
   const [isEditing, setIsEditing] = useState(false);
 
