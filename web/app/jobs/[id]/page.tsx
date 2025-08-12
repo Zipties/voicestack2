@@ -4,7 +4,12 @@ import React, { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Play, Pause, Volume2, Users, FileText } from 'lucide-react'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_URL =
+  typeof window !== 'undefined' && process.env.NEXT_PUBLIC_API_URL
+    ? process.env.NEXT_PUBLIC_API_URL
+    : 'http://localhost:8000'
+  ? process.env.NEXT_PUBLIC_API_URL
+  : 'http://localhost:8000'
 
 interface JobDetail {
   id: string
@@ -23,6 +28,7 @@ interface JobDetail {
     title: string
     summary: string
     raw_text: string
+    segments?: any[]
   }
   artifacts?: {
     transcript_json: string
@@ -147,6 +153,11 @@ export default function JobDetailPage() {
 
   const currentSegment = getCurrentSegment()
 
+  // Extract unique speakers from transcript
+  const uniqueSpeakers = job.transcript?.segments
+    ? Array.from(new Map(job.transcript.segments.map(seg => [seg.speaker.id, seg.speaker])).values())
+    : [];
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
@@ -235,6 +246,19 @@ export default function JobDetailPage() {
               )}
             </div>
             
+            {/* Speakers Section */}
+            <div className="mt-6">
+              <h2 className="text-2xl font-bold tracking-tight">Speakers</h2>
+              <div className="mt-4 space-y-3">
+                {uniqueSpeakers.map(speaker => (
+                  <SpeakerEditor key={speaker.id} speaker={speaker} onUpdate={fetchJobDetail} />
+                ))}
+              </div>
+            </div>
+            
+            {/* Transcript View Component */}
+            <TranscriptView transcript={job.transcript} />
+            
             {/* Segments List */}
             <div className="bg-white rounded-lg shadow-md p-6">
               <h3 className="text-lg font-semibold mb-4">Segments</h3>
@@ -277,4 +301,69 @@ export default function JobDetailPage() {
       </div>
     </div>
   )
-} 
+}
+
+const TranscriptView = ({ transcript }) => {
+  if (!transcript || !transcript.segments || transcript.segments.length === 0) {
+    return <p className="mt-4 text-gray-500">No transcript is available for this job.</p>;
+  }
+
+  return (
+    <div className="mt-6">
+      <h2 className="text-2xl font-bold tracking-tight">Transcript</h2>
+      <ul className="mt-4 space-y-4">
+        {transcript.segments.map((segment) => (
+          <li key={segment.id} className="p-4 bg-white rounded-lg shadow">
+            <p className="font-semibold text-indigo-600">{segment.speaker?.name || `Speaker #${segment.speaker_id}`}</p>
+            <p className="mt-1 text-gray-800">{segment.text}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+const SpeakerEditor = ({ speaker, onUpdate }) => {
+  const [name, setName] = useState(speaker.name || '');
+  const [isEditing, setIsEditing] = useState(false);
+
+  const handleSave = async () => {
+    if (!name.trim()) return; // Prevent saving empty names
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/speakers/${speaker.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    setIsEditing(false);
+    onUpdate(); // Refresh job data to show the new name everywhere
+  };
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="px-2 py-1 border rounded-md"
+        />
+        <button onClick={handleSave} className="px-3 py-1 bg-green-500 text-white rounded-md hover:bg-green-600">Save</button>
+        <button onClick={() => setIsEditing(false)} className="px-3 py-1 bg-gray-300 rounded-md hover:bg-gray-400">Cancel</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="font-medium">{speaker.name || `Speaker #${speaker.id}`}</span>
+      <button onClick={() => setIsEditing(true)} className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600">Edit</button>
+      
+      <details className="mt-2">
+        <summary className="cursor-pointer text-sm text-gray-500">View Embedding (Debug)</summary>
+        <pre className="mt-1 p-2 bg-gray-100 rounded text-xs overflow-x-auto">
+          {JSON.stringify(speaker.embedding, null, 2)}
+        </pre>
+      </details>
+    </div>
+  );
+}; 
