@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Upload, FileAudio, Users, Clock, AlertCircle, CheckCircle } from 'lucide-react'
+import { Upload, FileAudio, Users, Clock, AlertCircle, CheckCircle, List } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const API_TOKEN = 'changeme' // In production, this should be secure
@@ -123,9 +123,21 @@ export default function HomePage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold text-gray-900 mb-8 text-center">
-          VoiceStack2
-        </h1>
+        {/* Navigation Header */}
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900">
+            VoiceStack2
+          </h1>
+          <div className="flex space-x-4">
+            <a
+              href="/jobs"
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              <List className="w-4 h-4 mr-2" />
+              View All Jobs
+            </a>
+          </div>
+        </div>
         
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-2xl font-semibold mb-4 flex items-center">
