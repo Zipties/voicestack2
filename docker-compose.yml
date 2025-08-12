@@ -1,6 +1,6 @@
 services:
   web:
-    build: { context: ./web }
+    image: voicestack2-web:latest
     # publish web to host
     ports: ["3000:3000"]
     environment:
@@ -17,7 +17,7 @@ services:
       retries: 10
 
   api:
-    build: { context: ./api }
+    image: voicestack2-api:latest
     # publish API so the browser can reach it
     ports: ["8000:8000"]
     environment:
@@ -44,7 +44,7 @@ services:
       retries: 30
 
   worker:
-    build: { context: ./worker }
+    image: voicestack2-worker:latest
     environment:
       DATABASE_URL: "postgresql+psycopg://voice:voice@db:5432/voice"
       REDIS_URL: "redis://redis:6379/0"
