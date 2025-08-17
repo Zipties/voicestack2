@@ -24,7 +24,10 @@
       "Bash(git config:*)",
       "Bash(timeout:*)",
       "Bash(docker-compose build:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose restart:*)",
+      "Bash(docker-compose:*)"
     ],
     "deny": [],
     "ask": []

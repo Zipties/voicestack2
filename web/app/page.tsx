@@ -5,7 +5,7 @@ import { FileAudio, Users, Clock } from 'lucide-react'
 import dynamic from 'next/dynamic'
 
 const RecordingInterface = dynamic(
-  () => import('./components/ClientOnlyRecordingInterface'),
+  () => import('./components/SimpleRecordingInterface'),
   { 
     ssr: false,
     loading: () => (
