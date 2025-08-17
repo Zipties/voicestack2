@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { Clock, CheckCircle, XCircle, AlertCircle, Play } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, AlertCircle, Play, Home, Upload } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -71,7 +71,16 @@ export default function JobsPage() {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold mb-8">Jobs</h1>
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-bold">Jobs</h1>
+            <a
+              href="/"
+              className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+            >
+              <Home className="w-4 h-4 mr-2" />
+              Back to Home
+            </a>
+          </div>
           <div className="text-center">Loading...</div>
         </div>
       </div>
@@ -81,7 +90,17 @@ export default function JobsPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">Jobs</h1>
+        {/* Navigation Header */}
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold">Jobs</h1>
+          <a
+            href="/"
+            className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+          >
+            <Home className="w-4 h-4 mr-2" />
+            Back to Home
+          </a>
+        </div>
         
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
@@ -93,7 +112,14 @@ export default function JobsPage() {
           <div className="bg-white rounded-lg shadow-md p-8 text-center">
             <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No jobs yet</h3>
-            <p className="text-gray-600">Upload a file to get started</p>
+            <p className="text-gray-600 mb-4">Upload a file to get started</p>
+            <a
+              href="/"
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              Upload File
+            </a>
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-md overflow-hidden">

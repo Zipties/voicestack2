@@ -23,6 +23,7 @@ interface JobDetail {
     title: string
     summary: string
     raw_text: string
+    segments?: any[]
   }
   artifacts?: {
     transcript_json: string
@@ -40,6 +41,30 @@ interface Segment {
   text: string
   speaker_name: string
   word_timings: any[]
+}
+
+interface Transcript {
+  id: string
+  title?: string
+  summary?: string
+  raw_text?: string
+  segments?: Array<{
+    id: string
+    start: number
+    end: number
+    text: string
+    speaker: {
+      id: string
+      name?: string
+    }
+  }>
+}
+
+interface Speaker {
+  id: string
+  name?: string
+  is_trusted?: boolean
+  embedding?: number[]
 }
 
 export default function JobDetailPage() {
@@ -147,6 +172,11 @@ export default function JobDetailPage() {
 
   const currentSegment = getCurrentSegment()
 
+  // Extract unique speakers from transcript
+  const uniqueSpeakers = job.transcript?.segments
+    ? Array.from(new Map(job.transcript.segments.map(seg => [seg.speaker.id, seg.speaker])).values())
+    : [];
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
@@ -235,6 +265,19 @@ export default function JobDetailPage() {
               )}
             </div>
             
+            {/* Speakers Section */}
+            <div className="mt-6">
+              <h2 className="text-2xl font-bold tracking-tight">Speakers</h2>
+              <div className="mt-4 space-y-3">
+                {uniqueSpeakers.map(speaker => (
+                  <SpeakerEditor key={speaker.id} speaker={speaker} onUpdate={fetchJobDetail} />
+                ))}
+              </div>
+            </div>
+            
+            {/* Transcript View Component */}
+            {job.transcript && <TranscriptView transcript={job.transcript} />}
+            
             {/* Segments List */}
             <div className="bg-white rounded-lg shadow-md p-6">
               <h3 className="text-lg font-semibold mb-4">Segments</h3>
@@ -277,4 +320,191 @@ export default function JobDetailPage() {
       </div>
     </div>
   )
-} 
+}
+
+const TranscriptView = ({ transcript }: { transcript: Transcript }) => {
+  if (!transcript || !transcript.segments || transcript.segments.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-2xl font-bold tracking-tight mb-4">Transcript</h2>
+        <div className="text-center py-8">
+          <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+          <p className="text-gray-500 text-lg">No transcript is available for this job.</p>
+          <p className="text-gray-400 text-sm mt-1">The transcript will appear here once processing is complete.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow-md p-6">
+      <h2 className="text-2xl font-bold tracking-tight mb-4">Transcript</h2>
+      
+      {/* Transcript Summary */}
+      {(transcript.title || transcript.summary) && (
+        <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          {transcript.title && (
+            <h3 className="text-lg font-semibold text-blue-900 mb-2">{transcript.title}</h3>
+          )}
+          {transcript.summary && (
+            <p className="text-blue-800">{transcript.summary}</p>
+          )}
+        </div>
+      )}
+      
+      {/* Transcript Segments */}
+      <div className="space-y-4">
+        {transcript.segments.map((segment, index) => (
+          <div key={segment.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
+            <div className="flex items-start gap-3">
+              {/* Speaker Avatar */}
+              <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <Users className="w-4 h-4 text-indigo-600" />
+              </div>
+              
+              {/* Segment Content */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="font-semibold text-indigo-600">
+                    {segment.speaker?.name || `Speaker #${segment.speaker?.id || 'Unknown'}`}
+                  </span>
+                  <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full">
+                    {Math.round(segment.start)}s - {Math.round(segment.end)}s
+                  </span>
+                </div>
+                <p className="text-gray-800 leading-relaxed">{segment.text}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      {/* Transcript Stats */}
+      <div className="mt-6 pt-4 border-t border-gray-200">
+        <div className="flex items-center justify-between text-sm text-gray-600">
+          <span>Total segments: {transcript.segments.length}</span>
+          <span>Duration: {transcript.segments.length > 0 ? 
+            `${Math.round(transcript.segments[transcript.segments.length - 1].end)}s` : '0s'
+          }</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SpeakerEditor = ({ speaker, onUpdate }: { speaker: Speaker; onUpdate: () => void }) => {
+  const [name, setName] = useState(speaker.name || '');
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!name.trim()) return; // Prevent saving empty names
+    
+    setIsSaving(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/speakers/${speaker.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update speaker name');
+      }
+      
+      setIsEditing(false);
+      onUpdate(); // Refresh job data to show the new name everywhere
+    } catch (error) {
+      console.error('Failed to update speaker:', error);
+      alert('Failed to update speaker name. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setName(speaker.name || ''); // Reset to original name
+    setIsEditing(false);
+  };
+
+  if (isEditing) {
+    return (
+      <div className="bg-white rounded-lg shadow-md p-4 border border-blue-200">
+        <div className="flex items-center gap-3 mb-3">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Enter speaker name"
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSave();
+              if (e.key === 'Escape') handleCancel();
+            }}
+            autoFocus
+          />
+          <button 
+            onClick={handleSave} 
+            disabled={isSaving || !name.trim()}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isSaving ? 'Saving...' : 'Save'}
+          </button>
+          <button 
+            onClick={handleCancel}
+            disabled={isSaving}
+            className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 disabled:opacity-50 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow-md p-4 border border-gray-200 hover:border-gray-300 transition-colors">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+            <Users className="w-4 h-4 text-blue-600" />
+          </div>
+          <div>
+            <span className="font-medium text-gray-900">
+              {speaker.name || `Speaker #${speaker.id}`}
+            </span>
+            {speaker.is_trusted && (
+              <span className="ml-2 px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
+                Trusted
+              </span>
+            )}
+          </div>
+        </div>
+        <button 
+          onClick={() => setIsEditing(true)} 
+          className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors text-sm"
+        >
+          Edit Name
+        </button>
+      </div>
+      
+      {/* Embedding Debug View */}
+      {speaker.embedding && (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700 transition-colors">
+            🔍 View Voice Embedding (Debug)
+          </summary>
+          <div className="mt-2 p-3 bg-gray-50 rounded-md">
+            <div className="text-xs text-gray-600 mb-2">
+              Vector dimensions: {speaker.embedding.length}
+            </div>
+            <pre className="text-xs text-gray-800 overflow-x-auto whitespace-pre-wrap">
+              {JSON.stringify(speaker.embedding.slice(0, 10), null, 2)}
+              {speaker.embedding.length > 10 && `\n... and ${speaker.embedding.length - 10} more dimensions`}
+            </pre>
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}; 
