@@ -25,11 +25,17 @@ function RecordingInterfaceCore() {
     mediaBlobUrl,
     error: recorderError
   } = useReactMediaRecorder({
-    audio: true
+    audio: true,
+    onStop: (blobUrl, blob) => {
+      console.log('Recording stopped:', { blobUrl, blob });
+      setRecordingState('stopped');
+      stopDurationTimer();
+    }
   });
 
   // Update recording state based on media recorder status
   useEffect(() => {
+    console.log('Media recorder status changed:', status);
     switch (status) {
       case 'idle':
         setRecordingState('idle');
@@ -88,7 +94,15 @@ function RecordingInterfaceCore() {
   };
 
   const handleStopRecording = () => {
-    stopRecording();
+    console.log('Attempting to stop recording, current status:', status);
+    try {
+      stopRecording();
+      console.log('stopRecording() called successfully');
+    } catch (error) {
+      console.error('Error calling stopRecording():', error);
+      setRecordingState('error');
+      setErrorMessage('Failed to stop recording.');
+    }
     stopDurationTimer();
   };
 
@@ -213,14 +227,15 @@ function RecordingInterfaceCore() {
           disabled={recordingState === 'uploading'}
           className={`w-32 h-32 rounded-full border-4 transition-all duration-200 flex items-center justify-center ${
             recordingState === 'recording'
-              ? 'bg-red-500 border-red-600 hover:bg-red-600 animate-pulse'
+              ? 'bg-red-500 border-red-600 hover:bg-red-600 animate-pulse active:bg-red-700'
               : recordingState === 'uploading'
               ? 'bg-gray-400 border-gray-500 cursor-not-allowed'
               : recordingState === 'error'
               ? 'bg-red-100 border-red-300 hover:bg-red-200'
-              : 'bg-white border-gray-300 hover:border-gray-400 shadow-lg hover:shadow-xl'
+              : 'bg-white border-gray-300 hover:border-gray-400 shadow-lg hover:shadow-xl active:scale-95'
           }`}
           aria-label={recordingState === 'recording' ? 'Stop recording' : 'Start recording'}
+          onMouseDown={() => console.log('Button pressed, current state:', recordingState)}
         >
           {recordingState === 'uploading' ? (
             <svg className="w-8 h-8 text-white animate-spin" fill="none" viewBox="0 0 24 24">
