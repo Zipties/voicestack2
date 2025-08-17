@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker compose logs:*)",
+      "Bash(docker compose exec:*)",
+      "Bash(docker compose build:*)",
+      "Bash(docker compose restart:*)",
+      "Bash(python test_upload.py:*)",
+      "Bash(docker compose cp:*)",
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(docker logs:*)",
+      "Bash(echo:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)",
+      "Bash(git pull:*)",
+      "Bash(git merge:*)",
+      "Bash(git config:*)",
+      "Bash(timeout:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(rm:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
