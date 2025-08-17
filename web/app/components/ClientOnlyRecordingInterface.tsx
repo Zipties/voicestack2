@@ -223,19 +223,30 @@ function RecordingInterfaceCore() {
       {/* Main recording button */}
       <div className="relative mb-6">
         <button
-          onClick={recordingState === 'recording' ? handleStopRecording : handleStartRecording}
+          onClick={(e) => {
+            console.log('BUTTON CLICKED! Current state:', recordingState);
+            e.preventDefault();
+            e.stopPropagation();
+            if (recordingState === 'recording') {
+              console.log('Calling handleStopRecording');
+              handleStopRecording();
+            } else {
+              console.log('Calling handleStartRecording');
+              handleStartRecording();
+            }
+          }}
           disabled={recordingState === 'uploading'}
-          className={`w-32 h-32 rounded-full border-4 transition-all duration-200 flex items-center justify-center ${
+          style={{ pointerEvents: 'auto', zIndex: 1000 }}
+          className={`w-32 h-32 rounded-full border-4 transition-all duration-200 flex items-center justify-center cursor-pointer ${
             recordingState === 'recording'
-              ? 'bg-red-500 border-red-600 hover:bg-red-600 animate-pulse active:bg-red-700'
+              ? 'bg-red-500 border-red-600 hover:bg-red-600 animate-pulse'
               : recordingState === 'uploading'
               ? 'bg-gray-400 border-gray-500 cursor-not-allowed'
               : recordingState === 'error'
               ? 'bg-red-100 border-red-300 hover:bg-red-200'
-              : 'bg-white border-gray-300 hover:border-gray-400 shadow-lg hover:shadow-xl active:scale-95'
+              : 'bg-white border-gray-300 hover:border-gray-400 shadow-lg hover:shadow-xl'
           }`}
           aria-label={recordingState === 'recording' ? 'Stop recording' : 'Start recording'}
-          onMouseDown={() => console.log('Button pressed, current state:', recordingState)}
         >
           {recordingState === 'uploading' ? (
             <svg className="w-8 h-8 text-white animate-spin" fill="none" viewBox="0 0 24 24">
@@ -266,6 +277,9 @@ function RecordingInterfaceCore() {
 
       {/* Status text */}
       <div className="text-center">
+        <div className="text-xs text-gray-400 mb-2">
+          Debug: recordingState = "{recordingState}" | status = "{status}"
+        </div>
         {recordingState === 'idle' && (
           <p className="text-gray-600">Tap to start recording</p>
         )}
