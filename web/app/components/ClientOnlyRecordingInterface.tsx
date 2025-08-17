@@ -25,8 +25,7 @@ function RecordingInterfaceCore() {
     mediaBlobUrl,
     error: recorderError
   } = useReactMediaRecorder({
-    audio: true,
-    mimeType: supportedFormat?.mimeType || 'audio/wav'
+    audio: true
   });
 
   // Update recording state based on media recorder status
