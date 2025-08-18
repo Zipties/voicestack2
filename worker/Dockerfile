@@ -15,8 +15,8 @@ COPY requirements.txt ./
 # First install core dependencies
 RUN pip install --no-cache-dir rq redis python-dotenv sqlalchemy psycopg[binary] pydantic fastapi uvicorn httpx
 
-# Install PyTorch (CPU version to avoid CUDA issues in Docker)
-RUN pip install --no-cache-dir torch==2.0.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+# Install PyTorch with CUDA support (will use CPU if GPU not available)
+RUN pip install --no-cache-dir torch torchvision torchaudio
 
 # Install OpenAI Whisper instead of faster-whisper (no ctranslate2)
 RUN pip install --no-cache-dir openai-whisper

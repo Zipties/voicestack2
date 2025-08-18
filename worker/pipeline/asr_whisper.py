@@ -4,6 +4,7 @@ ASR using OpenAI Whisper (no ctranslate2 dependency)
 
 import os
 import json
+import torch
 import whisper
 from typing import Dict, Any, List
 from pathlib import Path
@@ -66,5 +67,3 @@ def transcribe_audio(audio_path: str, model_name: str = "base", compute_type: st
         "text": result.get("text", "")
     }
 
-# Import torch for device detection
-import torch

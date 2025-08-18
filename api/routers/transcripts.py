@@ -19,9 +19,11 @@ class SegmentResponse(BaseModel):
     word_timings: dict
     speaker_id: str
     speaker_name: str
+    original_speaker_label: str | None = None
 
     class Config:
         from_attributes = True
+        use_enum_values = True
 
 class TranscriptResponse(BaseModel):
     id: str
@@ -79,7 +81,8 @@ def get_transcript(
             text=segment.text,
             word_timings=segment.word_timings or {},
             speaker_id=str(speaker.id) if speaker else None,
-            speaker_name=speaker.name if speaker else "Unknown"
+            speaker_name=speaker.name if speaker else "Unknown",
+            original_speaker_label=segment.original_speaker_label
         ))
     
     return TranscriptResponse(
@@ -88,4 +91,37 @@ def get_transcript(
         summary=transcript.summary,
         raw_text=transcript.raw_text,
         segments=segment_responses
-    ) 
+    )
+
+class SegmentReassignRequest(BaseModel):
+    speaker_id: str
+
+@router.put("/segments/{segment_id}/speaker")
+def reassign_segment_speaker(
+    segment_id: str,
+    request: SegmentReassignRequest,
+    db: Session = Depends(get_db)
+):
+    """Reassign a segment to a different speaker."""
+    
+    # Get the segment
+    segment = db.query(Segment).filter(Segment.id == segment_id).first()
+    if not segment:
+        raise HTTPException(status_code=404, detail="Segment not found")
+    
+    # Verify the new speaker exists
+    speaker = db.query(Speaker).filter(Speaker.id == request.speaker_id).first()
+    if not speaker:
+        raise HTTPException(status_code=404, detail="Speaker not found")
+    
+    # Update the segment
+    segment.speaker_id = request.speaker_id
+    db.commit()
+    db.refresh(segment)
+    
+    return {
+        "message": "Segment speaker reassigned successfully",
+        "segment_id": str(segment.id),
+        "new_speaker_id": str(segment.speaker_id),
+        "new_speaker_name": speaker.name
+    } 

@@ -15,6 +15,7 @@ class Segment(Base):
     text = Column(String, nullable=False)
     word_timings = Column(JSON, nullable=True)
     speaker_id = Column(UUID(as_uuid=True), ForeignKey("speakers.id"), nullable=True)
+    original_speaker_label = Column(String, nullable=True)  # Store original pipeline label (e.g., "SPEAKER_00")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     

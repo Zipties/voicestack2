@@ -151,11 +151,36 @@ def get_job_detail(
     if asset:
         db_transcript = db.query(Transcript).filter(Transcript.asset_id == asset.id).first()
         if db_transcript:
+            # Get segments with speaker information
+            from models.segment import Segment
+            from models.speaker import Speaker
+            
+            segments = db.query(Segment, Speaker).join(
+                Speaker, Segment.speaker_id == Speaker.id, isouter=True
+            ).filter(Segment.transcript_id == db_transcript.id).order_by(Segment.start).all()
+            
+            segments_data = []
+            for segment, speaker in segments:
+                segments_data.append({
+                    "id": str(segment.id),
+                    "start": segment.start,
+                    "end": segment.end,
+                    "text": segment.text,
+                    "original_speaker_label": segment.original_speaker_label,
+                    "speaker": {
+                        "id": str(speaker.id) if speaker else None,
+                        "name": speaker.name if speaker else "Unknown",
+                        "original_label": speaker.original_label if speaker else None,
+                        "match_confidence": speaker.match_confidence if speaker else None
+                    }
+                })
+            
             transcript_data = {
                 "id": str(db_transcript.id),
                 "title": db_transcript.title,
                 "summary": db_transcript.summary,
-                "raw_text": db_transcript.raw_text
+                "raw_text": db_transcript.raw_text,
+                "segments": segments_data
             }
     
     # Fallback to artifacts transcript if DB transcript missing
@@ -165,9 +190,17 @@ def get_job_detail(
         try:
             with open(transcript_txt_path, "r", encoding="utf-8") as f:
                 raw_text = f.read()
+            
+            # Create a sensible title from first few words, not the entire first line
+            title = "Transcript"
+            if raw_text:
+                first_words = raw_text.split()[:8]  # First 8 words
+                if len(first_words) >= 3:  # Only use as title if we have at least 3 words
+                    title = " ".join(first_words) + ("..." if len(raw_text.split()) > 8 else "")
+            
             transcript_data = {
                 "id": str(db_transcript.id) if db_transcript else job_id,
-                "title": (raw_text.splitlines()[0] if raw_text else "Transcript"),
+                "title": title,
                 "summary": "",
                 "raw_text": raw_text,
             }

@@ -10,7 +10,7 @@ import time
 # API configuration
 API_URL = "http://localhost:8000"
 API_TOKEN = "changeme"  # Default token from docker-compose.yml
-TEST_FILE = "test-files/small-test-file.mp3"
+TEST_FILE = "test-files/multi-speaker-test.m4a"
 
 def test_upload():
     """Test uploading a file and check transcript generation."""
@@ -26,7 +26,7 @@ def test_upload():
     headers = {"Authorization": f"Bearer {API_TOKEN}"}
     
     with open(TEST_FILE, 'rb') as f:
-        files = {'file': ('test-audio.mp3', f, 'audio/mpeg')}
+        files = {'file': ('multi-speaker-test.m4a', f, 'audio/m4a')}
         response = requests.post(f"{API_URL}/upload", files=files, headers=headers)
     
     if response.status_code == 200:

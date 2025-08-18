@@ -65,7 +65,18 @@ services:
       LLM_MAX_OUTPUT_TOKENS: "512"
       # Whisper Configuration
       WHISPER_MODEL: "base"
-    volumes: ["./data:/data", "./api:/app/api"]
+      # Performance optimizations
+      TORCH_NUM_THREADS: "8"
+      OMP_NUM_THREADS: "8"
+      PYTORCH_CUDA_ALLOC_CONF: "max_split_size_mb:512"
+    volumes: ["./data:/data", "./api:/app/api", "model_cache:/app/model_cache"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     depends_on:
       api:
         condition: service_healthy
@@ -104,3 +115,4 @@ services:
 
 volumes:
   db_data: {}
+  model_cache: {}

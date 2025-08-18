@@ -53,9 +53,12 @@ interface Transcript {
     start: number
     end: number
     text: string
+    original_speaker_label?: string
     speaker: {
       id: string
       name?: string
+      original_label?: string
+      match_confidence?: number
     }
   }>
 }
@@ -64,6 +67,8 @@ interface Speaker {
   id: string
   name?: string
   is_trusted?: boolean
+  original_label?: string
+  match_confidence?: number
   embedding?: number[]
 }
 
@@ -230,7 +235,6 @@ export default function JobDetailPage() {
               {/* Display the raw transcript text */}
               {transcript.raw_text && (
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
-                  <h4 className="font-medium text-gray-900 mb-2">Transcript:</h4>
                   <div className="whitespace-pre-wrap text-gray-800">{transcript.raw_text}</div>
                 </div>
               )}
@@ -272,7 +276,7 @@ export default function JobDetailPage() {
                 <h2 className="text-2xl font-bold tracking-tight">Speakers</h2>
                 <div className="mt-4 space-y-3">
                   {uniqueSpeakers.map(speaker => (
-                    <SpeakerEditor key={speaker.id} speaker={speaker} onUpdate={fetchJobDetail} />
+                    <SpeakerEditor key={speaker.id} speaker={speaker} uniqueSpeakers={uniqueSpeakers} onUpdate={fetchJobDetail} />
                   ))}
                 </div>
               </div>
@@ -283,29 +287,15 @@ export default function JobDetailPage() {
               <div className="bg-white rounded-lg shadow-md p-6">
                 <h3 className="text-lg font-semibold mb-4">Segments</h3>
                 <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {transcript.segments.map((segment: Segment, index: number) => (
-                    <div
+                  {transcript.segments.map((segment: any, index: number) => (
+                    <SegmentItem 
                       key={segment.id}
-                      className={`p-3 rounded-md border cursor-pointer transition-colors ${
-                        currentSegment?.id === segment.id
-                          ? 'bg-blue-50 border-blue-200'
-                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                      }`}
-                      onClick={() => handleSeek(segment.start)}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center space-x-2">
-                          <Users className="w-4 h-4 text-gray-500" />
-                          <span className="font-medium text-sm">
-                            {segment.speaker_name}
-                          </span>
-                        </div>
-                        <span className="text-xs text-gray-500">
-                          {Math.round(segment.start)}s - {Math.round(segment.end)}s
-                        </span>
-                      </div>
-                      <p className="text-sm">{segment.text}</p>
-                    </div>
+                      segment={segment}
+                      uniqueSpeakers={uniqueSpeakers}
+                      currentSegment={currentSegment}
+                      onSeek={handleSeek}
+                      onReassign={fetchJobDetail}
+                    />
                   ))}
                 </div>
               </div>
@@ -323,6 +313,105 @@ export default function JobDetailPage() {
     </div>
   )
 }
+
+const SegmentItem = ({ 
+  segment, 
+  uniqueSpeakers, 
+  currentSegment, 
+  onSeek, 
+  onReassign 
+}: { 
+  segment: any;
+  uniqueSpeakers: Speaker[];
+  currentSegment: any;
+  onSeek: (time: number) => void;
+  onReassign: () => void;
+}) => {
+  const [isReassigning, setIsReassigning] = useState(false);
+  const [selectedSpeakerId, setSelectedSpeakerId] = useState(segment.speaker?.id || '');
+
+  const handleReassignSpeaker = async (newSpeakerId: string) => {
+    if (!newSpeakerId || newSpeakerId === segment.speaker?.id) return;
+
+    setIsReassigning(true);
+    try {
+      const response = await fetch(`/api/transcripts/segments/${segment.id}/speaker`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ speaker_id: newSpeakerId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reassign segment speaker');
+      }
+
+      onReassign(); // Refresh the data
+    } catch (error) {
+      console.error('Failed to reassign speaker:', error);
+      alert('Failed to reassign speaker. Please try again.');
+    } finally {
+      setIsReassigning(false);
+    }
+  };
+
+  return (
+    <div
+      className={`p-3 rounded-md border transition-colors ${
+        currentSegment?.id === segment.id
+          ? 'bg-blue-50 border-blue-200'
+          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+      }`}
+    >
+      <div className="flex items-start justify-between mb-2">
+        <div className="flex items-center space-x-2 cursor-pointer" onClick={() => onSeek(segment.start)}>
+          <Users className="w-4 h-4 text-gray-500" />
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-sm">
+                {segment.speaker?.name || 'Unknown'}
+              </span>
+              {segment.original_speaker_label && (
+                <span className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded font-mono">
+                  {segment.original_speaker_label}
+                </span>
+              )}
+            </div>
+            {segment.speaker?.match_confidence !== null && segment.speaker?.match_confidence !== undefined && (
+              <div className="text-xs text-gray-500">
+                {segment.speaker.match_confidence > 0 ? 
+                  `Matched (${(segment.speaker.match_confidence * 100).toFixed(1)}%)` : 
+                  'New speaker'
+                }
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          <select
+            value={selectedSpeakerId}
+            onChange={(e) => {
+              setSelectedSpeakerId(e.target.value);
+              handleReassignSpeaker(e.target.value);
+            }}
+            disabled={isReassigning}
+            className="text-xs border border-gray-300 rounded px-2 py-1 bg-white"
+          >
+            <option value="">Reassign to...</option>
+            {uniqueSpeakers.map((speaker) => (
+              <option key={speaker.id} value={speaker.id}>
+                {speaker.name || `Speaker #${speaker.id}`}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-gray-500">
+            {Math.round(segment.start)}s - {Math.round(segment.end)}s
+          </span>
+        </div>
+      </div>
+      <p className="text-sm cursor-pointer" onClick={() => onSeek(segment.start)}>{segment.text}</p>
+    </div>
+  );
+};
 
 const TranscriptView = ({ transcript }: { transcript: Transcript }) => {
   if (!transcript || !transcript.segments || transcript.segments.length === 0) {
@@ -342,10 +431,10 @@ const TranscriptView = ({ transcript }: { transcript: Transcript }) => {
     <div className="bg-white rounded-lg shadow-md p-6">
       <h2 className="text-2xl font-bold tracking-tight mb-4">Transcript</h2>
       
-      {/* Transcript Summary */}
-      {(transcript.title || transcript.summary) && (
+      {/* Transcript Summary - only show title if it's reasonably short (not full transcript) */}
+      {((transcript.title && transcript.title.length < 100) || transcript.summary) && (
         <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-          {transcript.title && (
+          {transcript.title && transcript.title.length < 100 && (
             <h3 className="text-lg font-semibold text-blue-900 mb-2">{transcript.title}</h3>
           )}
           {transcript.summary && (
@@ -394,7 +483,93 @@ const TranscriptView = ({ transcript }: { transcript: Transcript }) => {
   );
 };
 
-const SpeakerEditor = ({ speaker, onUpdate }: { speaker: Speaker; onUpdate: () => void }) => {
+const SpeakerMergeButton = ({ speaker, uniqueSpeakers, onUpdate }: { speaker: Speaker; uniqueSpeakers: Speaker[]; onUpdate: () => void }) => {
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [selectedTargetId, setSelectedTargetId] = useState('');
+  const [isMerging, setIsMerging] = useState(false);
+
+  const handleMerge = async () => {
+    if (!selectedTargetId) return;
+
+    setIsMerging(true);
+    try {
+      const response = await fetch('/api/speakers/merge', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer changeme' // TODO: Use proper auth
+        },
+        body: JSON.stringify({
+          source_speaker_id: speaker.id,
+          target_speaker_id: selectedTargetId
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to merge speakers');
+      }
+
+      setIsConfirming(false);
+      setSelectedTargetId('');
+      onUpdate(); // Refresh the data
+    } catch (error) {
+      console.error('Failed to merge speakers:', error);
+      alert('Failed to merge speakers. Please try again.');
+    } finally {
+      setIsMerging(false);
+    }
+  };
+
+  // Only show merge button if there are other speakers to merge with
+  const otherSpeakers = uniqueSpeakers.filter(s => s.id !== speaker.id);
+  if (otherSpeakers.length === 0) return null;
+
+  if (isConfirming) {
+    return (
+      <div className="flex items-center gap-2">
+        <select
+          value={selectedTargetId}
+          onChange={(e) => setSelectedTargetId(e.target.value)}
+          className="text-xs border border-gray-300 rounded px-2 py-1 bg-white"
+        >
+          <option value="">Merge with...</option>
+          {otherSpeakers.map((targetSpeaker) => (
+            <option key={targetSpeaker.id} value={targetSpeaker.id}>
+              {targetSpeaker.name || `Speaker #${targetSpeaker.id}`}
+            </option>
+          ))}
+        </select>
+        <button 
+          onClick={handleMerge}
+          disabled={!selectedTargetId || isMerging}
+          className="px-2 py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 disabled:opacity-50"
+        >
+          {isMerging ? 'Merging...' : 'Confirm'}
+        </button>
+        <button 
+          onClick={() => {
+            setIsConfirming(false);
+            setSelectedTargetId('');
+          }}
+          className="px-2 py-1 bg-gray-300 text-gray-700 rounded text-xs hover:bg-gray-400"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button 
+      onClick={() => setIsConfirming(true)} 
+      className="px-3 py-1 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors text-sm"
+    >
+      Merge
+    </button>
+  );
+};
+
+const SpeakerEditor = ({ speaker, uniqueSpeakers, onUpdate }: { speaker: Speaker; uniqueSpeakers: Speaker[]; onUpdate: () => void }) => {
   const [name, setName] = useState(speaker.name || '');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -472,22 +647,47 @@ const SpeakerEditor = ({ speaker, onUpdate }: { speaker: Speaker; onUpdate: () =
             <Users className="w-4 h-4 text-blue-600" />
           </div>
           <div>
-            <span className="font-medium text-gray-900">
-              {speaker.name || `Speaker #${speaker.id}`}
-            </span>
-            {speaker.is_trusted && (
-              <span className="ml-2 px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
-                Trusted
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-gray-900">
+                {speaker.name || `Speaker #${speaker.id}`}
               </span>
+              {speaker.original_label && (
+                <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full font-mono">
+                  {speaker.original_label}
+                </span>
+              )}
+              {speaker.is_trusted && (
+                <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
+                  Trusted
+                </span>
+              )}
+            </div>
+            {speaker.match_confidence !== null && speaker.match_confidence !== undefined && (
+              <div className="text-xs text-gray-500 mt-1">
+                {speaker.match_confidence > 0 ? (
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                    Matched ({(speaker.match_confidence * 100).toFixed(1)}% confidence)
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                    New speaker
+                  </span>
+                )}
+              </div>
             )}
           </div>
         </div>
-        <button 
-          onClick={() => setIsEditing(true)} 
-          className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors text-sm"
-        >
-          Edit Name
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setIsEditing(true)} 
+            className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors text-sm"
+          >
+            Edit Name
+          </button>
+          <SpeakerMergeButton speaker={speaker} uniqueSpeakers={uniqueSpeakers} onUpdate={onUpdate} />
+        </div>
       </div>
       
       {/* Embedding Debug View */}

@@ -12,6 +12,8 @@ class SpeakerResponse(BaseModel):
     id: str
     name: str
     is_trusted: bool
+    original_label: str | None = None
+    match_confidence: float | None = None
     embedding: list[float] | None = None  # Add embedding field for debugging
 
     class Config:
@@ -47,6 +49,8 @@ def list_speakers(db: Session = Depends(get_db)):
             id=str(speaker.id),
             name=speaker.name,
             is_trusted=speaker.is_trusted,
+            original_label=speaker.original_label,
+            match_confidence=speaker.match_confidence,
             embedding=embedding_vector
         ))
     
@@ -58,7 +62,10 @@ def merge_speakers(
     db: Session = Depends(get_db),
     _: str = Depends(require_bearer)
 ):
-    """Merge two speakers (stub implementation)."""
+    """Merge two speakers - reassigns all segments and embeddings from source to target."""
+    from models.segment import Segment
+    from models.embedding import Embedding
+    
     # Get the speakers
     source_speaker = db.query(Speaker).filter(Speaker.id == request.source_speaker_id).first()
     target_speaker = db.query(Speaker).filter(Speaker.id == request.target_speaker_id).first()
@@ -69,10 +76,43 @@ def merge_speakers(
     if source_speaker.id == target_speaker.id:
         raise HTTPException(status_code=400, detail="Cannot merge speaker with itself")
     
-    # This is a stub - in Phase 2 we'll implement the actual merging logic
-    # which will reassign segments, merge embeddings, and delete the source speaker
+    try:
+        # Reassign all segments from source to target
+        segments_updated = db.query(Segment).filter(
+            Segment.speaker_id == source_speaker.id
+        ).update({Segment.speaker_id: target_speaker.id})
+        
+        # Reassign all embeddings from source to target
+        embeddings_updated = db.query(Embedding).filter(
+            Embedding.speaker_id == source_speaker.id
+        ).update({Embedding.speaker_id: target_speaker.id})
+        
+        # Update target speaker's match confidence to best of both
+        if source_speaker.match_confidence and target_speaker.match_confidence:
+            target_speaker.match_confidence = max(source_speaker.match_confidence, target_speaker.match_confidence)
+        elif source_speaker.match_confidence:
+            target_speaker.match_confidence = source_speaker.match_confidence
+        
+        # Keep the original_label of whichever speaker was created first
+        if source_speaker.created_at < target_speaker.created_at and source_speaker.original_label:
+            target_speaker.original_label = source_speaker.original_label
+        
+        # Delete the source speaker
+        db.delete(source_speaker)
+        db.commit()
+        
+        return {
+            "message": "Speakers merged successfully",
+            "source_speaker_id": request.source_speaker_id,
+            "target_speaker_id": request.target_speaker_id,
+            "target_speaker_name": target_speaker.name,
+            "segments_reassigned": segments_updated,
+            "embeddings_reassigned": embeddings_updated
+        }
     
-    return {"message": "Speaker merge initiated (stub implementation)"} 
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to merge speakers: {str(e)}") 
 
 @router.put("/{speaker_id}")
 def update_speaker(
@@ -93,5 +133,7 @@ def update_speaker(
         id=str(speaker.id),
         name=speaker.name,
         is_trusted=speaker.is_trusted,
+        original_label=speaker.original_label,
+        match_confidence=speaker.match_confidence,
         embedding=None  # Don't include embedding in update response
     )} 

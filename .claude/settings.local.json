@@ -37,9 +37,16 @@
       "Bash(docker system events:*)",
       "Bash(docker compose:*)",
       "Bash(docker restart:*)",
-      "Bash(docker cp:*)"
+      "Bash(docker cp:*)",
+      "WebFetch(domain:voice.simpson.sh)",
+      "Bash(nvidia-smi:*)",
+      "Bash(docker buildx:*)",
+      "Bash(docker system:*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "F:\\data\\artifacts"
+    ]
   }
 }

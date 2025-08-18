@@ -148,6 +148,7 @@ async def run_job(job_id: str, input_path: str, params: Dict[str, Any]) -> None:
         
         # Update asset with metadata
         asset = None  # Initialize asset variable
+        print(f"DEBUG: Asset model status: {Asset}, Job model status: {job}")
         if Asset is not None and job is not None:
             try:
                 asset = db.query(Asset).filter(Asset.job_id == job_uuid).first()
@@ -218,15 +219,21 @@ async def run_job(job_id: str, input_path: str, params: Dict[str, Any]) -> None:
         log_step(job_id, "Running speaker diarization")
         
         hf_token = settings_dict.get("hf_token")
-        if not hf_token:
-            log_step(job_id, "Skipping diarization (no HF token)")
+        if not hf_token or hf_token == "your_hf_token_here":
+            log_step(job_id, "Skipping diarization (no valid HF token)")
             diarization_result = {"turns": [], "speakers": []}
         else:
-            with get_gpu_mutex():
-                diarization_result = diarize_audio(
-                    audio_result["normalized_path"],
-                    hf_token
-                )
+            try:
+                with get_gpu_mutex():
+                    diarization_result = diarize_audio(
+                        audio_result["normalized_path"],
+                        hf_token
+                    )
+                log_step(job_id, f"Diarization completed: {len(diarization_result.get('turns', []))} speaker turns")
+            except Exception as diarization_error:
+                log_step(job_id, f"Diarization failed (skipping): {diarization_error}")
+                print(f"Warning: Diarization failed but continuing pipeline: {diarization_error}")
+                diarization_result = {"turns": [], "speakers": []}
         
         write_json(job_id, "diarization.json", diarization_result)
         
@@ -257,12 +264,16 @@ async def run_job(job_id: str, input_path: str, params: Dict[str, Any]) -> None:
         log_step(job_id, "Processing speaker embeddings")
         
         if diarization_result["turns"]:
-            with get_gpu_mutex():
-                speaker_result = process_speaker_embeddings(
-                    audio_result["normalized_path"],
-                    diarization_result,
-                    db
-                )
+            try:
+                with get_gpu_mutex():
+                    speaker_result = process_speaker_embeddings(
+                        audio_result["normalized_path"],
+                        diarization_result,
+                        db
+                    )
+            except Exception as e:
+                log_step(job_id, f"Speaker embeddings failed (skipping): {e}")
+                speaker_result = {"speaker_mapping": {}, "embeddings_count": 0}
         else:
             speaker_result = {"speaker_mapping": {}, "embeddings_count": 0}
         
@@ -324,7 +335,8 @@ async def run_job(job_id: str, input_path: str, params: Dict[str, Any]) -> None:
                     end=segment_data["end"],
                     text=segment_data["text"],
                     word_timings=segment_data.get("words", []),
-                    speaker_id=speaker_id
+                    speaker_id=speaker_id,
+                    original_speaker_label=segment_data.get("speaker")
                 )
                 db.add(segment)
             
@@ -391,13 +403,36 @@ async def run_job(job_id: str, input_path: str, params: Dict[str, Any]) -> None:
         
         # Step 8: Finalize
         log_step(job_id, "Pipeline completed successfully")
+        
+        # Always try to update job status, even if job object wasn't found earlier
+        final_job_updated = False
         if job:
             try:
                 job.status = JobStatus.SUCCEEDED.value
                 job.progress = 100
                 db.commit()
+                final_job_updated = True
+                print(f"✓ Updated job {job_id} to SUCCEEDED with 100% progress")
             except Exception as e:
-                print(f"Warning: Failed to update job status: {e}")
+                print(f"Warning: Failed to update job status via job object: {e}")
+        
+        # Fallback: try direct database update if we have Job model but no job object
+        if not final_job_updated and Job is not None:
+            try:
+                result = db.query(Job).filter(Job.id == job_uuid).update({
+                    'status': JobStatus.SUCCEEDED.value,
+                    'progress': 100
+                })
+                db.commit()
+                if result > 0:
+                    print(f"✓ Updated job {job_id} via direct query to SUCCEEDED with 100% progress")
+                else:
+                    print(f"Warning: Job {job_id} not found in database for direct update")
+            except Exception as e:
+                print(f"Warning: Failed to update job status via direct query: {e}")
+        
+        if not final_job_updated and Job is None:
+            print(f"Warning: Cannot update job status - Job model not available")
         
     except Exception as e:
         # Handle errors

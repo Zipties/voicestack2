@@ -5,6 +5,8 @@ Speaker embeddings and identification using SpeechBrain ECAPA
 import os
 import json
 import numpy as np
+import torch
+import torchaudio
 from typing import Dict, Any, List, Optional, Tuple
 from speechbrain.pretrained import EncoderClassifier
 from pipeline.artifacts import log_step, write_json
@@ -12,10 +14,15 @@ from db import get_db, Speaker, Embedding
 from sqlalchemy.orm import Session
 
 def load_ecapa_model():
-    """Load SpeechBrain ECAPA model."""
+    """Load SpeechBrain ECAPA model with GPU support if available."""
+    # Check if CUDA is available
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Loading SpeechBrain ECAPA model on device: {device}")
+    
     model = EncoderClassifier.from_hparams(
         source="speechbrain/spkrec-ecapa-voxceleb",
-        savedir="/data/models/speechbrain/spkrec-ecapa-voxceleb"
+        savedir="/data/models/speechbrain/spkrec-ecapa-voxceleb",
+        run_opts={"device": device}
     )
     return model
 
@@ -47,8 +54,25 @@ def extract_speaker_embeddings(audio_path: str, speaker_turns: List[Dict[str, An
         sf.write(temp_path, segment_audio, sr)
         
         try:
-            # Extract embedding
-            embedding = model.encode_batch([temp_path])
+            # Load audio file and convert to proper format for SpeechBrain
+            # SpeechBrain expects 16kHz mono audio tensors
+            signal, fs = torchaudio.load(temp_path)
+            
+            # Ensure mono channel - convert stereo to mono if needed
+            if signal.shape[0] > 1:
+                signal = signal.mean(dim=0, keepdim=True)
+            
+            # Resample to 16kHz if needed (SpeechBrain requirement)
+            if fs != 16000:
+                resampler = torchaudio.transforms.Resample(fs, 16000)
+                signal = resampler(signal)
+            
+            # SpeechBrain encode_batch expects [batch, time] format
+            # Current shape is [channels, time], so transpose and add batch dim
+            signal = signal.squeeze(0).unsqueeze(0)  # [1, time]
+            
+            # Extract embedding using encode_batch
+            embedding = model.encode_batch(signal)
             embedding_vector = embedding.squeeze().cpu().numpy()
             
             embeddings.append({
@@ -98,19 +122,26 @@ def find_similar_speaker(embedding: List[float], db: Session, threshold: float =
     
     return None
 
-def create_or_assign_speaker(speaker_label: str, embedding: List[float], db: Session, threshold: float = 0.3) -> Speaker:
-    """Create new speaker or assign to existing one."""
+def create_or_assign_speaker(speaker_label: str, embedding: List[float], db: Session, threshold: float = 0.3) -> tuple[Speaker, float]:
+    """Create new speaker or assign to existing one. Returns (speaker, confidence)."""
     # Try to find similar speaker
     existing_speaker = find_similar_speaker(embedding, db, threshold)
+    best_similarity = 0.0
     
     if existing_speaker:
+        # Calculate the actual similarity score for the matched speaker
+        existing_embeddings = db.query(Embedding).filter(Embedding.speaker_id == existing_speaker.id).all()
+        for emb in existing_embeddings:
+            similarity = cosine_similarity(embedding, emb.vector)
+            best_similarity = max(best_similarity, similarity)
+        
         # Add embedding to existing speaker
         new_embedding = Embedding(
             speaker_id=existing_speaker.id,
             vector=embedding
         )
         db.add(new_embedding)
-        return existing_speaker
+        return existing_speaker, best_similarity
     else:
         # Create new speaker
         # Convert speaker label to readable name
@@ -121,7 +152,12 @@ def create_or_assign_speaker(speaker_label: str, embedding: List[float], db: Ses
         else:
             speaker_name = speaker_label
         
-        new_speaker = Speaker(name=speaker_name, is_trusted=False)
+        new_speaker = Speaker(
+            name=speaker_name, 
+            is_trusted=False,
+            original_label=speaker_label,
+            match_confidence=None  # New speaker, no match
+        )
         db.add(new_speaker)
         db.flush()  # Get the ID
         
@@ -132,7 +168,7 @@ def create_or_assign_speaker(speaker_label: str, embedding: List[float], db: Ses
         )
         db.add(new_embedding)
         
-        return new_speaker
+        return new_speaker, 0.0
 
 def process_speaker_embeddings(audio_path: str, diarization_result: Dict[str, Any], db: Session) -> Dict[str, Any]:
     """Process speaker embeddings and create/assign speakers."""
@@ -143,18 +179,26 @@ def process_speaker_embeddings(audio_path: str, diarization_result: Dict[str, An
     
     # Process each speaker
     speaker_mapping = {}
+    confidence_scores = {}
     
     for emb_data in embeddings:
         speaker_label = emb_data["speaker_label"]
         embedding = emb_data["embedding"]
         
         # Create or assign speaker
-        speaker = create_or_assign_speaker(speaker_label, embedding, db)
+        speaker, confidence = create_or_assign_speaker(speaker_label, embedding, db)
+        
+        # Update match_confidence if this is a better match for an existing speaker
+        if confidence > 0 and (speaker.match_confidence is None or confidence > speaker.match_confidence):
+            speaker.match_confidence = confidence
+        
         speaker_mapping[speaker_label] = speaker
+        confidence_scores[speaker_label] = confidence
     
     db.commit()
     
     return {
         "speaker_mapping": {label: speaker.id for label, speaker in speaker_mapping.items()},
+        "confidence_scores": confidence_scores,
         "embeddings_count": len(embeddings)
     } 

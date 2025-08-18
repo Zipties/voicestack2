@@ -1,5 +1,5 @@
 """
-Speaker diarization using pyannote.audio
+Speaker diarization using pyannote.audio with local model caching
 """
 
 import os
@@ -8,14 +8,76 @@ from typing import Dict, Any, List, Optional
 from pyannote.audio import Pipeline
 from pipeline.artifacts import log_step, write_json
 
+# Global pipeline cache to avoid reloading
+_pipeline_cache = None
+
 def load_diarization_pipeline(hf_token: str) -> Pipeline:
-    """Load pyannote.audio diarization pipeline."""
-    pipeline = Pipeline.from_pretrained(
-        "pyannote/speaker-diarization@2.1",
-        use_auth_token=hf_token
-    )
+    """Load pyannote.audio diarization pipeline with caching."""
+    global _pipeline_cache
     
-    return pipeline
+    # Return cached pipeline if available
+    if _pipeline_cache is not None:
+        print("✓ Using cached diarization pipeline")
+        return _pipeline_cache
+    
+    print(f"Loading diarization pipeline with HF token: {hf_token[:10]}...")
+    
+    # Set cache directory for models to persist between container restarts
+    cache_dir = "/app/model_cache"
+    os.makedirs(cache_dir, exist_ok=True)
+    os.environ['TRANSFORMERS_CACHE'] = cache_dir
+    os.environ['HF_HOME'] = cache_dir
+    
+    try:
+        # Try to load from cache first (offline mode)
+        try:
+            print("Attempting to load pipeline from local cache...")
+            pipeline = Pipeline.from_pretrained(
+                "pyannote/speaker-diarization@2.1",
+                cache_dir=cache_dir,
+                local_files_only=True
+            )
+            print("✓ Loaded diarization pipeline from local cache")
+            _pipeline_cache = pipeline
+            return pipeline
+        except Exception as cache_error:
+            print(f"Cache load failed: {cache_error}")
+            print("Downloading pipeline with HF token...")
+        
+        # Download with token if cache fails
+        pipeline = Pipeline.from_pretrained(
+            "pyannote/speaker-diarization@2.1",
+            use_auth_token=hf_token,
+            cache_dir=cache_dir
+        )
+        
+        if pipeline is None:
+            raise RuntimeError(
+                "Pipeline.from_pretrained returned None. This usually means:\n"
+                "1. You need to accept user conditions at: https://huggingface.co/pyannote/speaker-diarization\n"
+                "2. You need to accept user conditions at: https://huggingface.co/pyannote/segmentation\n"
+                "3. Your HF token may be invalid or lack the required permissions\n"
+                "4. The model may not be accessible from your current location"
+            )
+        
+        print("✓ Diarization pipeline downloaded and cached successfully")
+        _pipeline_cache = pipeline
+        return pipeline
+    
+    except Exception as e:
+        error_msg = str(e).lower()
+        if "401" in error_msg or "unauthorized" in error_msg or "forbidden" in error_msg:
+            raise RuntimeError(
+                f"Authentication failed when loading diarization pipeline.\n"
+                f"Please ensure:\n"
+                f"1. You have accepted user conditions at: https://huggingface.co/pyannote/speaker-diarization\n"
+                f"2. You have accepted user conditions at: https://huggingface.co/pyannote/segmentation\n"
+                f"3. Your HF token is valid and has the required permissions\n"
+                f"Original error: {e}"
+            ) from e
+        else:
+            print(f"Failed to load diarization pipeline: {e}")
+            raise RuntimeError(f"Could not load diarization pipeline: {e}") from e
 
 def diarize_audio(audio_path: str, hf_token: str) -> Dict[str, Any]:
     """Perform speaker diarization on audio."""
