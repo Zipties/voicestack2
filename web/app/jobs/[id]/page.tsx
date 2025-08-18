@@ -90,7 +90,13 @@ export default function JobDetailPage() {
 
   const fetchJobDetail = async () => {
     try {
-      const response = await fetch(`${API_URL}/jobs/${jobId}`)
+      const response = await fetch(`${API_URL}/jobs/${jobId}?_t=${Date.now()}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      })
       if (!response.ok) {
         throw new Error('Failed to fetch job details')
       }

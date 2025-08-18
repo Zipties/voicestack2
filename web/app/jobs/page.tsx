@@ -63,11 +63,13 @@ export default function JobsPage() {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout
       
-      const response = await fetch(`${API_URL}/jobs`, {
+      const response = await fetch(`${API_URL}/jobs?_t=${Date.now()}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache'
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         },
         signal: controller.signal
       })
