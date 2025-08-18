@@ -3,8 +3,7 @@
 import React, { useState } from 'react'
 import { Upload, FileAudio, AlertCircle, CheckCircle, Home } from 'lucide-react'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-const API_TOKEN = 'changeme'
+const API_URL = '/api' // Use Next.js API routes
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024
 
@@ -73,9 +72,6 @@ export default function UploadPage() {
     try {
       const response = await fetch(`${API_URL}/upload`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${API_TOKEN}`
-        },
         body: formData
       })
 

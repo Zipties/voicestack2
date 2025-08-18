@@ -1,3 +1,5 @@
+import json
+import os
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -37,6 +39,27 @@ def get_transcript(
     db: Session = Depends(get_db)
 ):
     """Get transcript details with segments and speakers."""
+    
+    # First try to get from artifacts (for fallback jobs)
+    artifacts_dir = os.getenv("ARTIFACTS_DIR", "/data/artifacts")
+    transcript_file = os.path.join(artifacts_dir, transcript_id, "transcript.json")
+    
+    if os.path.exists(transcript_file):
+        try:
+            with open(transcript_file, 'r') as f:
+                data = json.load(f)
+            
+            return TranscriptResponse(
+                id=transcript_id,
+                title=f"Transcript {transcript_id}",
+                summary="Processed in fallback mode",
+                raw_text=data.get("transcript", ""),
+                segments=[]  # Fallback mode doesn't have segments
+            )
+        except Exception as e:
+            print(f"Error reading transcript file {transcript_file}: {e}")
+    
+    # Fallback to database lookup (for normal processing)
     transcript = db.query(Transcript).filter(Transcript.id == transcript_id).first()
     if not transcript:
         raise HTTPException(status_code=404, detail="Transcript not found")

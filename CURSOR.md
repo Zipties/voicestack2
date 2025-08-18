@@ -92,8 +92,10 @@ LLM service (optional but scaffolded) via provider adapters
 
 Pin minimum versions to avoid surprise API changes:
 
+# Core ML stack with compatibility constraints
+torch>=2.0.0,<2.4.0
 faster-whisper>=1.0.0
-ctranslate2>=4.3.0
+ctranslate2==4.4.0
 pyannote.audio>=3.1.0
 speechbrain>=0.5.16
 transformers>=4.41.0

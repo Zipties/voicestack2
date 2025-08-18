@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test WebM Recording Upload</title>
+</head>
+<body>
+    <h1>Test WebM Recording Upload</h1>
+    <button id="testUpload">Test Upload WebM Blob</button>
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('testUpload').addEventListener('click', async () => {
+            console.log('Testing webm upload...');
+            
+            // Create a minimal webm blob (empty audio data)
+            const webmHeader = new Uint8Array([
+                0x1A, 0x45, 0xDF, 0xA3, // EBML header
+                0x9F, 0x42, 0x86, 0x81, 0x01,
+                0x42, 0xF7, 0x81, 0x01,
+                0x42, 0xF2, 0x81, 0x04,
+                0x42, 0xF3, 0x81, 0x08,
+                0x42, 0x82, 0x88, 0x6D, 0x61, 0x74, 0x72, 0x6F, 0x73, 0x6B, 0x61
+            ]);
+            
+            const blob = new Blob([webmHeader], { type: 'audio/webm' });
+            
+            const formData = new FormData();
+            const filename = `test_recording_${Date.now()}.webm`;
+            const file = new File([blob], filename, { type: 'audio/webm' });
+            formData.append('file', file);
+            
+            try {
+                console.log('Uploading webm blob:', file);
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                console.log('Upload result:', result);
+                
+                if (response.ok) {
+                    document.getElementById('result').innerHTML = 
+                        `<p style="color: green;">Success! Job ID: ${result.job_id}</p>`;
+                } else {
+                    document.getElementById('result').innerHTML = 
+                        `<p style="color: red;">Error: ${result.error}</p>`;
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                document.getElementById('result').innerHTML = 
+                    `<p style="color: red;">Upload error: ${error.message}</p>`;
+            }
+        });
+    </script>
+</body>
+</html>

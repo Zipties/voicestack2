@@ -15,7 +15,13 @@ from sqlalchemy.orm import Session
 # Import worker-specific modules using absolute paths
 from pipeline.artifacts import log_step, write_json, write_text, write_srt, write_vtt
 from pipeline.audio import process_audio_file
-from pipeline.asr import transcribe_audio
+try:
+    from pipeline.asr import transcribe_audio
+    print("✓ Using faster-whisper ASR")
+except (ImportError, SyntaxError) as e:
+    print(f"faster-whisper ASR failed: {e}")
+    print("Using simple transformers ASR fallback")
+    from pipeline.asr_simple import transcribe_audio
 from pipeline.align import align_with_whisperx
 from pipeline.diarize import diarize_audio, map_words_to_speakers, assign_speakers_to_segments
 from pipeline.speakers import process_speaker_embeddings

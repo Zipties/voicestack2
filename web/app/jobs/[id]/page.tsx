@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Play, Pause, Volume2, Users, FileText } from 'lucide-react'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_URL = '/api' // Use Next.js API routes
 
 interface JobDetail {
   id: string
@@ -92,9 +92,12 @@ export default function JobDetailPage() {
       const data = await response.json()
       setJob(data)
       
-      // If job is completed, fetch transcript
+      // If job is completed and has transcript data, use it directly
       if (data.status === 'SUCCEEDED' && data.transcript) {
-        fetchTranscript(data.transcript.id)
+        setTranscript(data.transcript)
+      } else if (data.status === 'SUCCEEDED') {
+        // Fallback: try to fetch transcript using job ID if not included in job data
+        fetchTranscript(jobId)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch job details')
@@ -224,34 +227,32 @@ export default function JobDetailPage() {
                 Transcript
               </h2>
               
-              {job.transcript?.title && (
-                <div className="mb-4">
-                  <h3 className="font-medium text-gray-900">{job.transcript.title}</h3>
+              {/* Display the raw transcript text */}
+              {transcript.raw_text && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
+                  <h4 className="font-medium text-gray-900 mb-2">Transcript:</h4>
+                  <div className="whitespace-pre-wrap text-gray-800">{transcript.raw_text}</div>
                 </div>
               )}
               
-              {job.transcript?.summary && (
-                <div className="mb-4">
-                  <p className="text-gray-600">{job.transcript.summary}</p>
+              {/* Audio Player - only show if we have an asset */}
+              {job.asset && (
+                <div className="mb-6">
+                  <audio
+                    ref={(el) => setAudioElement(el)}
+                    onTimeUpdate={handleTimeUpdate}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                    className="w-full"
+                    controls
+                  >
+                    <source src={`${API_URL}/assets/${job.asset?.id}/audio`} type="audio/wav" />
+                    Your browser does not support the audio element.
+                  </audio>
                 </div>
               )}
               
-              {/* Audio Player */}
-              <div className="mb-6">
-                <audio
-                  ref={(el) => setAudioElement(el)}
-                  onTimeUpdate={handleTimeUpdate}
-                  onPlay={() => setIsPlaying(true)}
-                  onPause={() => setIsPlaying(false)}
-                  className="w-full"
-                  controls
-                >
-                  <source src={`${API_URL}/assets/${job.asset?.id}/audio`} type="audio/wav" />
-                  Your browser does not support the audio element.
-                </audio>
-              </div>
-              
-              {/* Current Segment Highlight */}
+              {/* Current Segment Highlight - only show if we have segments */}
               {currentSegment && (
                 <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
                   <div className="flex items-center space-x-2 mb-2">
@@ -265,49 +266,50 @@ export default function JobDetailPage() {
               )}
             </div>
             
-            {/* Speakers Section */}
-            <div className="mt-6">
-              <h2 className="text-2xl font-bold tracking-tight">Speakers</h2>
-              <div className="mt-4 space-y-3">
-                {uniqueSpeakers.map(speaker => (
-                  <SpeakerEditor key={speaker.id} speaker={speaker} onUpdate={fetchJobDetail} />
-                ))}
+            {/* Speakers Section - only show if we have segments with speakers */}
+            {transcript.segments && transcript.segments.length > 0 && (
+              <div className="mt-6">
+                <h2 className="text-2xl font-bold tracking-tight">Speakers</h2>
+                <div className="mt-4 space-y-3">
+                  {uniqueSpeakers.map(speaker => (
+                    <SpeakerEditor key={speaker.id} speaker={speaker} onUpdate={fetchJobDetail} />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
             
-            {/* Transcript View Component */}
-            {job.transcript && <TranscriptView transcript={job.transcript} />}
-            
-            {/* Segments List */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-semibold mb-4">Segments</h3>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {transcript.segments?.map((segment: Segment, index: number) => (
-                  <div
-                    key={segment.id}
-                    className={`p-3 rounded-md border cursor-pointer transition-colors ${
-                      currentSegment?.id === segment.id
-                        ? 'bg-blue-50 border-blue-200'
-                        : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                    }`}
-                    onClick={() => handleSeek(segment.start)}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center space-x-2">
-                        <Users className="w-4 h-4 text-gray-500" />
-                        <span className="font-medium text-sm">
-                          {segment.speaker_name}
+            {/* Segments List - only show if we have segments */}
+            {transcript.segments && transcript.segments.length > 0 && (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <h3 className="text-lg font-semibold mb-4">Segments</h3>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {transcript.segments.map((segment: Segment, index: number) => (
+                    <div
+                      key={segment.id}
+                      className={`p-3 rounded-md border cursor-pointer transition-colors ${
+                        currentSegment?.id === segment.id
+                          ? 'bg-blue-50 border-blue-200'
+                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                      }`}
+                      onClick={() => handleSeek(segment.start)}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center space-x-2">
+                          <Users className="w-4 h-4 text-gray-500" />
+                          <span className="font-medium text-sm">
+                            {segment.speaker_name}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {Math.round(segment.start)}s - {Math.round(segment.end)}s
                         </span>
                       </div>
-                      <span className="text-xs text-gray-500">
-                        {Math.round(segment.start)}s - {Math.round(segment.end)}s
-                      </span>
+                      <p className="text-sm">{segment.text}</p>
                     </div>
-                    <p className="text-sm">{segment.text}</p>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </>
         )}
         
@@ -402,7 +404,7 @@ const SpeakerEditor = ({ speaker, onUpdate }: { speaker: Speaker; onUpdate: () =
     
     setIsSaving(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/speakers/${speaker.id}`, {
+      const response = await fetch(`/api/speakers/${speaker.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim() }),

@@ -27,7 +27,17 @@
       "Bash(rm:*)",
       "Bash(docker-compose up:*)",
       "Bash(docker-compose restart:*)",
-      "Bash(docker-compose:*)"
+      "Bash(docker-compose:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "WebSearch",
+      "Bash(docker exec:*)",
+      "Bash(docker inspect:*)",
+      "Bash(docker run:*)",
+      "Bash(docker system events:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker restart:*)",
+      "Bash(docker cp:*)"
     ],
     "deny": [],
     "ask": []

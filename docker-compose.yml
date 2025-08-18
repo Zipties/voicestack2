@@ -6,6 +6,7 @@ services:
     environment:
       # point the browser to the host-published API
       NEXT_PUBLIC_API_URL: "http://localhost:8000"
+      API_TOKEN: "${API_TOKEN:-changeme}"
     depends_on:
       api:
         condition: service_healthy

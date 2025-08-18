@@ -110,8 +110,6 @@ export function useOfflineRecordings() {
   const syncPendingRecordings = useCallback(async () => {
     if (!isOnline || pendingRecordings.length === 0) return;
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    
     for (const recording of pendingRecordings) {
       try {
         const formData = new FormData();
@@ -122,11 +120,8 @@ export function useOfflineRecordings() {
         );
         formData.append('file', file);
 
-        const response = await fetch(`${apiUrl}/upload`, {
+        const response = await fetch('/api/upload', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_API_TOKEN || 'changeme'}`
-          },
           body: formData
         });
 

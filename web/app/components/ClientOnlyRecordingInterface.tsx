@@ -139,20 +139,14 @@ function RecordingInterfaceCore() {
   };
 
   const uploadRecording = async (blob: Blob) => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const apiToken = process.env.NEXT_PUBLIC_API_TOKEN || 'changeme';
-
     try {
       const formData = new FormData();
       const filename = `recording_${Date.now()}.${supportedFormat?.extension || 'wav'}`;
       const file = new File([blob], filename, { type: supportedFormat?.mimeType || 'audio/wav' });
       formData.append('file', file);
 
-      const response = await fetch(`${apiUrl}/upload`, {
+      const response = await fetch('/api/upload', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiToken}`
-        },
         body: formData
       });
 
