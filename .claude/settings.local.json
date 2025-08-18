@@ -41,7 +41,8 @@
       "WebFetch(domain:voice.simpson.sh)",
       "Bash(nvidia-smi:*)",
       "Bash(docker buildx:*)",
-      "Bash(docker system:*)"
+      "Bash(docker system:*)",
+      "Bash(detected speakers in the audio file via the user facing web UI\" ✅\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": [],

@@ -69,6 +69,8 @@ services:
       TORCH_NUM_THREADS: "8"
       OMP_NUM_THREADS: "8"
       PYTORCH_CUDA_ALLOC_CONF: "max_split_size_mb:512"
+      # Worker configuration
+      RQ_WORKER_PROCESSES: "1"
     volumes: ["./data:/data", "./api:/app/api", "model_cache:/app/model_cache"]
     deploy:
       resources:

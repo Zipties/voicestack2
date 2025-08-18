@@ -72,9 +72,16 @@ def main():
         return
     
     print("\n=== Starting Worker ===")
-    # Start worker
-    worker = Worker([queue], connection=redis_conn)
-    worker.work()
+    print("Configuring worker for single job processing (no concurrency)")
+    
+    # Create worker with explicit job timeout and single job processing
+    worker = Worker([queue], connection=redis_conn, job_timeout=3600)  # 1 hour timeout
+    
+    # Configure worker to process only one job at a time
+    # burst=False means it will continuously listen for jobs
+    # with_scheduler=False disables the scheduler to avoid any background tasks
+    print("Worker will process jobs serially (one at a time)")
+    worker.work(burst=False, with_scheduler=False)
 
 if __name__ == "__main__":
     main()
