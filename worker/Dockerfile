@@ -1,20 +1,38 @@
 FROM python:3.11-slim
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+# Install system dependencies (git needed for some ML packages)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    git \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies in stages to handle timeouts
+# Install Python dependencies in stages
 COPY requirements.txt ./
 
-# First install core dependencies that are essential for the worker to start
+# First install core dependencies
 RUN pip install --no-cache-dir rq redis python-dotenv sqlalchemy psycopg[binary] pydantic fastapi uvicorn httpx
 
-# Then install ML dependencies (this is the time-consuming part)
-RUN pip install --no-cache-dir "torch>=2.0.0,<2.4.0" ctranslate2==4.0.0 numpy
+# Install PyTorch (CPU version to avoid CUDA issues in Docker)
+RUN pip install --no-cache-dir torch==2.0.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
 
-# Finally install remaining audio processing dependencies
-RUN pip install --no-cache-dir faster-whisper whisperx pyannote.audio speechbrain transformers sentence-transformers pgvector tiktoken
+# Install OpenAI Whisper instead of faster-whisper (no ctranslate2)
+RUN pip install --no-cache-dir openai-whisper
+
+# Install remaining audio processing dependencies
+# Note: whisperx might still have issues, but we'll try
+RUN pip install --no-cache-dir \
+    whisperx \
+    pyannote.audio \
+    speechbrain \
+    transformers \
+    sentence-transformers \
+    pgvector \
+    tiktoken \
+    librosa \
+    numba
 
 COPY . .
 CMD ["python","worker.py"]

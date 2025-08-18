@@ -41,9 +41,10 @@ def extract_speaker_embeddings(audio_path: str, speaker_turns: List[Dict[str, An
         if len(segment_audio) < sr * 0.5:  # Less than 0.5 seconds
             continue
         
-        # Save temporary segment
+        # Save temporary segment using soundfile instead of deprecated librosa.output
+        import soundfile as sf
         temp_path = f"/tmp/speaker_{speaker_label}_{start_time}.wav"
-        librosa.output.write_wav(temp_path, segment_audio, sr)
+        sf.write(temp_path, segment_audio, sr)
         
         try:
             # Extract embedding

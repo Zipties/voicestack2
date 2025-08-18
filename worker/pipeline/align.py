@@ -1,44 +1,42 @@
 """
-Word-level alignment using WhisperX
+Word-level alignment using WhisperX without ctranslate2
 """
 
 import os
 import json
 from typing import Dict, Any, List
 import whisperx
-from pipeline.artifacts import log_step, write_json
 
-def align_transcript(audio_path: str, segments: List[Dict[str, Any]], language: str = "en") -> Dict[str, Any]:
-    """Align transcript to audio using WhisperX."""
-    # Load the audio
+def align_with_whisperx(audio_path: str, asr_result: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Perform word-level alignment using WhisperX.
+    Uses the alignment model without ctranslate2.
+    """
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    
+    # Load audio
     audio = whisperx.load_audio(audio_path)
     
-    # Load the model - use float32 for CPU compatibility
-    model = whisperx.load_model("base", device="cuda" if os.environ.get("CUDA_VISIBLE_DEVICES") else "cpu", compute_type="float32")
+    # Load alignment model
+    model_a, metadata = whisperx.load_align_model(
+        language_code=asr_result.get("language", "en"),
+        device=device
+    )
     
-    # Get device for alignment
-    device = "cuda" if os.environ.get("CUDA_VISIBLE_DEVICES") else "cpu"
+    # Prepare segments for alignment
+    segments = asr_result["segments"]
     
-    # Align the transcript - using the correct parameter order for WhisperX
-    try:
-        result = whisperx.align(
-            segments,
-            model,
-            audio,
-            language,
-            device=device,
-            return_char_alignments=False
-        )
-    except Exception as e:
-        print(f"WhisperX alignment failed: {e}")
-        print(f"Parameters: segments={len(segments)}, model={type(model)}, audio={type(audio)}, language={language}, device={device}")
-        # Return empty result on failure
-        return {
-            "aligned_words": [],
-            "segments": segments
-        }
+    # Perform alignment
+    result = whisperx.align(
+        segments,
+        model_a,
+        metadata,
+        audio,
+        device,
+        return_char_alignments=False
+    )
     
-    # Extract word-level alignments
+    # Extract aligned words
     aligned_words = []
     for segment in result["segments"]:
         if "words" in segment:
@@ -55,22 +53,5 @@ def align_transcript(audio_path: str, segments: List[Dict[str, Any]], language: 
         "segments": result["segments"]
     }
 
-def align_with_whisperx(audio_path: str, asr_result: Dict[str, Any]) -> Dict[str, Any]:
-    """Align ASR result using WhisperX."""
-    # Convert our format to WhisperX format
-    segments = []
-    for i, segment in enumerate(asr_result["segments"]):
-        segments.append({
-            "start": segment["start"],
-            "end": segment["end"],
-            "text": segment["text"]
-        })
-    
-    # Perform alignment
-    alignment_result = align_transcript(
-        audio_path,
-        segments,
-        asr_result.get("language", "en")
-    )
-    
-    return alignment_result 
+# Import torch for device detection
+import torch

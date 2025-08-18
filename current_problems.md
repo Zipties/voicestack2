@@ -85,6 +85,13 @@ pipeline/run.py
         └── ctranslate2 ❌ FAILS HERE
 ```
 
+### **Database Schema Issues** ✅ **RESOLVED**
+- **Issue**: Missing `secrets_config` column in settings table
+- **Error**: `column settings.secrets_config does not exist at character 168`
+- **Impact**: API/pipeline database queries failing
+- **Resolution**: Added missing column via ALTER TABLE
+- **Prevention**: Created migration script in `/migrations/001_add_secrets_config.sql`
+
 ### **Current Workaround**
 ```
 simple_pipeline.py (fallback)
